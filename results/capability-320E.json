@@ -1,0 +1,79 @@
+{
+ "label": "320E",
+ "passed": 12,
+ "total": 12,
+ "cases": [
+  {
+   "i": 0,
+   "prompt": "What is 17 * 23? Show your work, then give the final answer as a numbe",
+   "ok": true,
+   "answer": "17 \u00d7 23 = 17 \u00d7 20 + 17 \u00d7 3 = 340 + 51 = 391\n\n391"
+  },
+  {
+   "i": 1,
+   "prompt": "What is 847 + 1569? Give the final answer as a number.",
+   "ok": true,
+   "answer": "2416"
+  },
+  {
+   "i": 2,
+   "prompt": "Compute 144 / 12 * 7. Give the final answer as a number.",
+   "ok": true,
+   "answer": "84"
+  },
+  {
+   "i": 3,
+   "prompt": "A train travels 240 km in 3 hours. What is its average speed in km/h? ",
+   "ok": true,
+   "answer": "80"
+  },
+  {
+   "i": 4,
+   "prompt": "If all Bloops are Razzies and all Razzies are Lazzies, are all Bloops ",
+   "ok": true,
+   "answer": "Yes."
+  },
+  {
+   "i": 5,
+   "prompt": "List the numbers 1 to 15 in order, comma separated, and nothing else.",
+   "ok": true,
+   "answer": "1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15"
+  },
+  {
+   "i": 6,
+   "prompt": "What is the 10th prime number? Answer with the number.",
+   "ok": true,
+   "answer": "29"
+  },
+  {
+   "i": 7,
+   "prompt": "Reverse the string 'abcdefg'. Give just the reversed string.",
+   "ok": true,
+   "answer": "gfedcba"
+  },
+  {
+   "i": 8,
+   "prompt": "How many letter 'r' characters are in the word 'strawberry'? Answer wi",
+   "ok": true,
+   "answer": "3"
+  },
+  {
+   "i": 9,
+   "prompt": "Write a Python one-liner using a list comprehension that squares the n",
+   "ok": true,
+   "answer": "[x**2 for x in range(1, 6)]"
+  },
+  {
+   "i": 10,
+   "prompt": "Convert 0b10110101 to decimal. Answer with the number.",
+   "ok": true,
+   "answer": "181"
+  },
+  {
+   "i": 11,
+   "prompt": "What is the capital of Australia? One word.",
+   "ok": true,
+   "answer": "Canberra"
+  }
+ ]
+}
