@@ -5,8 +5,28 @@ Everything in the README table was measured on the target node (5× CMP 170HX). 
 
 ## Decode throughput
 
-Single-stream, greedy, 512-token generations over four varied technical prompts, counting **both**
-`content` and `reasoning` deltas.
+Single-stream, greedy, 700-token generations over four varied technical prompts.
+
+**The server's own counters are authoritative.** `bench_spec.py` computes
+`(accepted_spec_tokens + draft_steps) / wall_time` from `/metrics`, which is immune to SSE
+framing, the field split below, and early EOS. A streaming harness is a useful cross-check but
+should never be the primary figure:
+
+| method | 320E+DSpark | 384E baseline |
+|---|---|---|
+| engine counters | 57.4 tok/s | n/a (no spec decode) |
+| streaming harness | 57.8 tok/s | 42.4 tok/s |
+
+Two harness bugs were found and fixed in this project, both of which inflated numbers:
+
+1. **The reasoning-field bug.** This model streams its chain of thought in a separate `reasoning`
+   field (~595 of 600 chunks on a technical prompt). An earlier version timed first-token on
+   `content` alone and reported **74 tok/s** for a configuration that actually ran at **42** —
+   it divided all completion tokens by the short content tail. Server-side telemetry confirmed
+   40.3 tok/s.
+2. **The chunk-counting bug.** Counting SSE *chunks* instead of tokens under-reports badly when
+   speculative decoding is on: with τ≈2.5 each chunk carries ~2.6 tokens, giving 22.6 instead of
+   57.6 tok/s. Use `usage.completion_tokens`, never the delta count.
 
 That detail matters: this model streams its chain of thought in a separate `reasoning` field
 (~595 of 600 chunks on a technical prompt), and an earlier harness that timed first-token on
@@ -100,3 +120,18 @@ draft): pruning saved ~9 GiB and the draft consumed ~8.2 GiB of it.
 - **Long-run stability.** The reported run was ~1 hour; no soak test.
 - **The `persistent_topk` SM8x corruption** was not exercised. It reportedly affects prompt lengths
   2049–4096; verify before trusting batch>1 output.
+
+
+## Correction history
+
+Two published numbers in this repo were wrong and have been fixed. Both are recorded rather
+than quietly overwritten:
+
+| claim | corrected to | why it was wrong |
+|---|---|---|
+| 72.7 tok/s, 1.71× | **57.8 tok/s, 1.36×** | the 72.7 was the *max* of a noisy sample set (engine logs from that session: n=19, median 59.3, max 71.5), not the typical rate |
+| rebalancing costs 19% throughput | **no measurable cost** | measured against the bad 72.7 baseline; against a properly re-measured baseline the rebalanced config is 57.45 vs 57.35 tok/s, i.e. within noise |
+
+Lesson: a throughput figure needs its distribution, and the engine's own counters should be the
+primary source. A single quoted number from one lucky run propagated into two separate wrong
+conclusions.

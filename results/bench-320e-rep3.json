@@ -1,0 +1,63 @@
+{
+ "label": "320e-rep3",
+ "url": "http://localhost:9004",
+ "max_tokens": 512,
+ "server_tok_s_median": 57.34,
+ "harness_tok_s_median": 58.79,
+ "acceptance_median": 0.2975,
+ "tau_median": 2.488,
+ "runs": [
+  {
+   "rep": 0,
+   "prompt": 0,
+   "wall_s": 9.435,
+   "ttft_s": 0.221,
+   "completion_tokens": 512,
+   "accepted": 292,
+   "steps": 220,
+   "tau": 2.327,
+   "acceptance": 0.2655,
+   "server_tok_s": 54.27,
+   "harness_tok_s": 55.57
+  },
+  {
+   "rep": 0,
+   "prompt": 1,
+   "wall_s": 8.573,
+   "ttft_s": 0.216,
+   "completion_tokens": 512,
+   "accepted": 315,
+   "steps": 197,
+   "tau": 2.599,
+   "acceptance": 0.3198,
+   "server_tok_s": 59.72,
+   "harness_tok_s": 61.27
+  },
+  {
+   "rep": 0,
+   "prompt": 2,
+   "wall_s": 9.299,
+   "ttft_s": 0.205,
+   "completion_tokens": 512,
+   "accepted": 296,
+   "steps": 215,
+   "tau": 2.377,
+   "acceptance": 0.2753,
+   "server_tok_s": 54.95,
+   "harness_tok_s": 56.31
+  },
+  {
+   "rep": 0,
+   "prompt": 3,
+   "wall_s": 7.556,
+   "ttft_s": 0.215,
+   "completion_tokens": 512,
+   "accepted": 339,
+   "steps": 173,
+   "tau": 2.96,
+   "acceptance": 0.3919,
+   "server_tok_s": 67.76,
+   "harness_tok_s": 69.74
+  }
+ ]
+}

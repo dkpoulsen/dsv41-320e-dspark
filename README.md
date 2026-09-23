@@ -12,14 +12,22 @@ the saliency ranking on this hardware, which turned out to be possible after all
 
 | metric | 384E baseline (no DSpark) | **320E + DSpark(5)** |
 |---|---|---|
-| single-stream decode | 42.4 tok/s | **72.7 tok/s — 1.71×** |
-| peak aggregate | 155.5 tok/s | 163.1 tok/s |
-| acceptance rate | — | 30.9% (τ = 2.54 tok/step) |
-| prefill @107K ctx | 2,099 tok/s | 3,086 tok/s |
+| single-stream decode | 42.4 tok/s | **57.8 tok/s median — 1.36×** (1.64× best prompt) |
+| acceptance rate | — | 29.4% (τ = 2.47 tok/step) |
+| prefill @107K ctx | 2,099 tok/s | 3,099 tok/s |
 | needle-in-haystack @107K | HIT | **HIT** |
 | free VRAM, ranks 0–3 | 1.4–3.0 GiB | **12.0–13.1 GiB** |
 | rank 4 load (draft host) | 57.92 GiB | 58.02 GiB *(incl. 3-stage draft)* |
-| KV pool | 1,814,599 tok | 1,729,736 tok (95% retained) |
+| KV pool | 1,814,599 tok | **5,471,116 tok — 3× more** (see [KV-CAPACITY.md](KV-CAPACITY.md)) |
+
+**Correction.** An earlier version of this table claimed 72.7 tok/s / 1.71×. Fixed — that
+figure was the *maximum* of a noisy sample set (the engine's own logs from that session:
+n=19, median 59.3, max 71.5), not the typical rate. Re-measured both sides on the same
+node with two independent methods, the number is **57.8 tok/s median, 1.36×**. Throughput
+is prompt-dependent (55.5–69.4 tok/s depending on how well the drafter accepts), so treat
+it as a range. Full accounting in [KV-CAPACITY.md](KV-CAPACITY.md#correction-the-727-toks-in-the-readme-is-wrong).
+
+DSpark did not cost KV capacity — the rebalanced partition below *tripled* it.
 
 **Quality cost: +1.93% held-out perplexity** (4.3329 → 4.4164, paired on 49,104 held-out tokens;
 bootstrap 95% CI [+0.66%, +3.60%]). Task suite: 12/12 on both models.
@@ -137,6 +145,24 @@ which is also decent evidence the calibration ranking is sound.
   difference. If you need certainty for a specific workload, run a task eval on that workload.
 - Calibration was text-only (see above for why that is sound here)
 
+## KV capacity — and a free 3×
+
+Once the draft fits, the KV pool is limited by whichever rank has the least free memory,
+because vLLM allocates the same block count on every rank. With the default balanced
+partition that rank is PP4 (it carries the head *and* the draft), so 11–14 GiB sitting idle
+on the other four cards bought nothing.
+
+Two independent levers fix it — see **[KV-CAPACITY.md](KV-CAPACITY.md)** for the full
+measurement:
+
+```bash
+VLLM_PP_LAYER_PARTITION=8,9,9,8,6 GPU_UTIL=0.98 ./scripts/serve-dsv41-320e-rebalanced.sh
+```
+
+That takes the pool from 1,729,736 tokens (1.65× a 1M request) to **5,471,116 (5.22×)** at
+the same speed and 12/12 correctness. Rebalancing alone gives 2.86×, utilization alone
+1.92×, both together 3.47×.
+
 ## Repo layout
 
 ```
@@ -151,6 +177,14 @@ docs-research-report.md   the full prior analysis of the fit problem
 
 ## Gotchas worth knowing
 
+- **Prefer the engine's own counters over a streaming harness.** `(accepted_spec_tokens +
+draft_steps) / wall_time` cannot be fooled by SSE framing, the `reasoning`/`content` field
+split, or an early EOS. Three separate bugs in this project were harness artifacts that the
+counters would have caught immediately. `benchmarks/bench_spec.py` reads them.
+- **Never quote a single throughput number without its spread.** Acceptance varies by prompt
+  (τ=2.42–3.05 across four prompts here), which moves decode rate by 25%. The figure that
+  shipped first in this repo was the max of a noisy sample set and had to be corrected down
+  from 1.71× to 1.36×.
 - **`prompt_logprobs` is required for perplexity** through a vLLM server; the openai-compatible
   `/completions` endpoint with `prompt_logprobs=0` returns the chosen token's logprob per position.
 - **PPL is `exp(-nll_per_token)`**, so a paired ratio is `exp(-mean_delta)` — not `exp(mean_delta)`.
@@ -160,6 +194,9 @@ docs-research-report.md   the full prior analysis of the fit problem
   spans and bootstrap the confidence interval.
 - **The full bf16-dequantized checkpoint does not fit on disk** (268.9 GiB of MXFP4 experts becomes
   ~1,012 GiB). Dequantize on the fly instead — that is what the fallback patch does.
+- **`--gpu-memory-utilization` above 0.98 is fragile here.** The engine will load and serve, but
+  the binding rank is left with ~400 MiB and a transient peak can kill the boot. 0.97–0.98 is the
+  usable band.
 - **`persistent_topk` has no capability gate on SM8x** in vLLM and can silently corrupt at prompt
   lengths 2049–4096 (see the linked PR thread). Worth verifying before trusting batch>1 output.
 - `case 320:` exists in the fused-router kernel table; `272`/`288` do not.

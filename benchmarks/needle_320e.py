@@ -1,4 +1,4 @@
-import requests, json, random, time
+import os, requests, json, random, time
 random.seed(7)
 filler = " ".join(f"Note {i}: the survey recorded {random.randint(100,999)} sites." for i in range(9000))
 NEEDLE = " The secret vault passphrase is ORCHID-MAGNET-42."
@@ -7,7 +7,7 @@ cut = int(len(filler) * 0.7)
 prompt = filler[:cut] + NEEDLE + filler[cut:] + Q
 t0 = time.time()
 r = requests.post(
-    "http://localhost:9004/v1/chat/completions",
+    os.environ.get("DSV41_URL","http://localhost:9004")+"/v1/chat/completions",
     json={"model": "DeepSeek-V4.1-Flash", "messages": [{"role": "user", "content": prompt}],
           "max_tokens": 200, "temperature": 0},
     timeout=3600,

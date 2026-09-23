@@ -5,10 +5,10 @@ Perplexity is a likelihood measure; task accuracy is what users actually feel. T
 a fixed suite with temperature 0 and scores exact-answer / structural correctness.
 Because both models are greedy, outputs are reproducible, so any difference is real.
 """
-import json, re, sys, time
+import json, os, re, sys, time
 import requests
 
-URL = "http://localhost:9004/v1/chat/completions"
+URL = os.environ.get("DSV41_URL", "http://localhost:9004") + "/v1/chat/completions"
 MODEL = "DeepSeek-V4.1-Flash"
 
 # (prompt, checker) — checkers look for a definite correct answer
