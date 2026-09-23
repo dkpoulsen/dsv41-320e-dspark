@@ -135,3 +135,30 @@ than quietly overwritten:
 Lesson: a throughput figure needs its distribution, and the engine's own counters should be the
 primary source. A single quoted number from one lucky run propagated into two separate wrong
 conclusions.
+
+
+## Steady-state vs load-time memory (the trap that bit last)
+
+When judging whether a config will survive a long request, **read `nvidia-smi` after the
+server is serving**, not when it finishes loading. The gap is large:
+
+| config | free at load | free while serving |
+|---|---|---|
+| `[8,9,9,8,6]` util 0.98 | 1.06 GiB | **84 MiB** |
+
+The 0.98 config passed every short test — 12/12 on the task suite, a 107K needle — and then
+killed the engine on a 383K prompt with
+`torch.OutOfMemoryError: Tried to allocate 128.00 MiB ... 113.75 MiB is free`.
+CUDA graph capture plus the settled KV pool eat the difference.
+
+Rule: an idle-server snapshot is the only safety number worth quoting.
+
+## Long-context MISSes are usually budget artifacts
+
+With `max_tokens=200` on a 400K prompt this model exhausted the budget inside its
+`reasoning` field and returned empty `content` with `finish_reason=length`. A naive harness
+records that as a retrieval MISS. It was not — with `max_tokens=2500` the same prompt
+returned the passphrase correctly.
+
+Check `finish_reason`, search **both** `content` and `reasoning`, and size the budget for a
+thinking model before concluding retrieval failed.

@@ -43,20 +43,49 @@ PP4's weights are fixed, but the *fraction of the card the engine may claim* is 
 
 ## Measured results
 
-| config | KV pool | × of 1M | decode | correct | min free |
+| config | KV pool | × of 1M | decode | steady-state free (binding rank) | verdict |
 |---|---|---|---|---|---|
-| `[8,8,8,8,8]` util 0.97 | 1,729,736 | 1.65 | 57.4 tok/s | 12/12 | 822 MiB |
-| `[8,8,8,8,8]` util 0.99 | 3,318,465 | 3.16 | 57.8 tok/s | 12/12 | 414 MiB |
-| `[8,9,9,8,6]` util 0.97 | 4,941,504 | 4.71 | 57.5 tok/s | 12/12 | 1.7 GiB |
-| **`[8,9,9,8,6]` util 0.98** | **5,471,116** | **5.22** | **57.6 tok/s** | **12/12** | **1.06 GiB** |
-| `[8,9,9,8,6]` util 0.99 | 6,000,728 | 5.72 | 57.8 tok/s | 12/12 | 396 MiB |
+| `[8,8,8,8,8]` util 0.97 | 1,729,736 | 1.65 | 57.4 tok/s | 822 MiB | works (original) |
+| `[8,9,9,8,6]` util 0.97 | 4,941,504 | 4.71 | 57.5 tok/s | **1,696 MiB** | **recommended** |
+| `[8,8,8,8,8]` util 0.99 | 3,318,465 | 3.16 | 57.8 tok/s | 414 MiB | tight |
+| `[8,9,9,8,6]` util 0.99 | 6,000,728 | 5.72 | 57.8 tok/s | 396 MiB | not advised |
+| `[8,9,9,8,6]` util 0.98 | 5,471,116 | 5.22 | 57.6 tok/s | 84 MiB | **OOMs at 400K** |
 
 - rebalance alone: **2.86×**
 - utilization alone: **1.92×**
-- both: **3.47×** (5.72× of a 1M request), at the same speed and 12/12 correctness
+- both: up to **3.47×**
 
-`util 0.99` leaves ~400 MiB free, which is fragile — prefer the `0.98` row. Long-context
-retrieval still HITs at 107K tokens on the recommended config (prefill 3,099 tok/s).
+### The util 0.98 row is a trap, and I fell into it
+
+`[8,9,9,8,6]` at util 0.98 loads fine, passes 12/12, and turns a 107K needle — then **killed
+the engine** on a 383K prompt:
+
+```
+torch.OutOfMemoryError: Tried to allocate 128.00 MiB. GPU 2 has a total capacity
+of 63.39 GiB of which 113.75 MiB is free.
+```
+
+PP2 — the rank the rebalance *added* layers to — had 84 MiB free in steady state, and a long
+prefill's activation peak went through it.
+
+The number I first quoted for that row (1.06 GiB free) was measured **at load time**, before
+CUDA graph capture and KV allocation settled. Steady state was 84 MiB. **Measure free memory
+after the server is serving, not when it stops loading** — the two differ by an order of
+magnitude, and only the steady-state figure predicts whether a long request survives.
+
+The safe row is `util 0.97`, which keeps 1,696 MiB of steady-state headroom and was verified
+at full context:
+
+| prompt | prefill | needle |
+|---|---|---|
+| 383,060 tok | 3,519 tok/s | HIT |
+| 599,060 tok | 2,852 tok/s | HIT |
+| **911,060 tok** | 2,538 tok/s | **HIT** |
+
+A naive harness will report that 911K case as a MISS if the token budget is too small: with
+`max_tokens=200` the model exhausts the budget inside its `reasoning` field and returns empty
+`content` with `finish_reason=length`. Check `finish_reason` before believing a miss —
+`benchmarks/needle_any.py` does, and searches both `content` and `reasoning`.
 
 ## Correction: the 72.7 tok/s in the README is wrong
 

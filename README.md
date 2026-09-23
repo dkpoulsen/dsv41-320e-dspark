@@ -16,7 +16,7 @@ the saliency ranking on this hardware, which turned out to be possible after all
 | acceptance rate | — | 29.4% (τ = 2.47 tok/step) |
 | prefill @107K ctx | 2,099 tok/s | 3,099 tok/s |
 | needle-in-haystack @107K | HIT | **HIT** |
-| free VRAM, ranks 0–3 | 1.4–3.0 GiB | **12.0–13.1 GiB** |
+| free VRAM, ranks 0–3 | 1.4–3.0 GiB | **12.0–13.1 GiB** (default partition) |
 | rank 4 load (draft host) | 57.92 GiB | 58.02 GiB *(incl. 3-stage draft)* |
 | KV pool | 1,814,599 tok | **5,471,116 tok — 3× more** (see [KV-CAPACITY.md](KV-CAPACITY.md)) |
 
@@ -156,12 +156,18 @@ Two independent levers fix it — see **[KV-CAPACITY.md](KV-CAPACITY.md)** for t
 measurement:
 
 ```bash
-VLLM_PP_LAYER_PARTITION=8,9,9,8,6 GPU_UTIL=0.98 ./scripts/serve-dsv41-320e-rebalanced.sh
+VLLM_PP_LAYER_PARTITION=8,9,9,8,6 GPU_UTIL=0.97 ./scripts/serve-dsv41-320e-rebalanced.sh
 ```
 
-That takes the pool from 1,729,736 tokens (1.65× a 1M request) to **5,471,116 (5.22×)** at
-the same speed and 12/12 correctness. Rebalancing alone gives 2.86×, utilization alone
-1.92×, both together 3.47×.
+That takes the pool from 1,729,736 tokens (1.65× a 1M request) to **4,941,504 (4.71×)** at
+the same speed and 12/12 correctness, with 1,696 MiB of steady-state headroom on the binding
+rank. Verified at full context: needle HIT at 383K, 599K and **911K tokens**.
+
+**Do not raise utilization to 0.98 to chase the last 0.5×.** That config loads and passes
+every short test, then OOMs the engine on a long prompt (`torch.OutOfMemoryError: Tried to
+allocate 128.00 MiB ... 113.75 MiB free` on the 9-layer rank). Load-time free memory is a
+misleading safety metric — it understates steady-state usage by ~10×. Details in
+[KV-CAPACITY.md](KV-CAPACITY.md#the-util-098-row-is-a-trap-and-i-fell-into-it).
 
 ## Repo layout
 
