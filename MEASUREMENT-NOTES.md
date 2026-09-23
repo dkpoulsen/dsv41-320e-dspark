@@ -151,7 +151,22 @@ killed the engine on a 383K prompt with
 `torch.OutOfMemoryError: Tried to allocate 128.00 MiB ... 113.75 MiB is free`.
 CUDA graph capture plus the settled KV pool eat the difference.
 
-Rule: an idle-server snapshot is the only safety number worth quoting.
+**But idle free memory is not the safety metric either** — the counter-intuitive part, and it
+took a second pass to get right. Raising utilization enlarges the KV cache at the expense of
+the non-KV reserve that activations grow into, and that reserve does not appear in
+`nvidia-smi` free memory because PyTorch holds it as reserved-but-unallocated. The OOM message
+says so directly: `299.47 MiB is reserved by PyTorch but unallocated`.
+
+So the 0.97 config survives a fresh 911K prefill while showing 30 MiB free the whole time
+(minimum free memory never drops below the idle value), and the 0.98 config dies at 383K while
+showing 84 MiB. The distinguishing variable is the activation reserve, not free margin. The
+practical rule here is empirical: `util 0.97` safe, `0.98` not.
+
+## Repeat runs are not stress tests
+
+Re-running an identical prompt returns in 5 s at 166,909 tok/s because it is served from the
+prefix cache — no prefill happens. Vary the seed (or use `--no-enable-prefix-caching`) before
+treating a long-context run as evidence.
 
 ## Long-context MISSes are usually budget artifacts
 

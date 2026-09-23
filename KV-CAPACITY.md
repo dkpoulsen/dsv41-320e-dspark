@@ -65,22 +65,38 @@ torch.OutOfMemoryError: Tried to allocate 128.00 MiB. GPU 2 has a total capacity
 of 63.39 GiB of which 113.75 MiB is free.
 ```
 
-PP2 — the rank the rebalance *added* layers to — had 84 MiB free in steady state, and a long
-prefill's activation peak went through it.
+PP2 — the rank the rebalance *added* layers to — had 84 MiB free in steady state.
 
-The number I first quoted for that row (1.06 GiB free) was measured **at load time**, before
-CUDA graph capture and KV allocation settled. Steady state was 84 MiB. **Measure free memory
-after the server is serving, not when it stops loading** — the two differ by an order of
-magnitude, and only the steady-state figure predicts whether a long request survives.
+But "the activation peak consumed the free margin" is *not* what happens, and the evidence is
+that a 30 MiB-free config survives a 911K prefill with its minimum free memory never dropping
+below the idle value. Two corrections to my own first reading:
+
+1. **Load-time free memory understates usage ~10×.** That row read 1.06 GiB free when loading
+   finished and 84 MiB once serving. Measure after the server is *serving*.
+2. **Idle free memory is not the safety metric either**, which is the counter-intuitive part.
+   Raising utilization enlarges the KV cache at the expense of the *non-KV reserve* that
+   activations grow into — and that reserve is invisible in `nvidia-smi` free memory, because
+   PyTorch holds it as reserved-but-unallocated. That is exactly what the OOM message says:
+   `299.47 MiB is reserved by PyTorch but unallocated`. At util 0.98 the KV cache had eaten
+   that reserve; at 0.97 it had not.
+
+So the empirical rule is simply: **`util 0.97` is safe here and `0.98` is not**, and the
+mechanism is KV-versus-activation reserve, not free margin. Corroborated below — the 0.97
+config ran three fresh prefills at 383K, 599K and 911K tokens while its binding rank showed
+30 MiB free the entire time.
 
 The safe row is `util 0.97`, which keeps 1,696 MiB of steady-state headroom and was verified
 at full context:
 
-| prompt | prefill | needle |
-|---|---|---|
-| 383,060 tok | 3,519 tok/s | HIT |
-| 599,060 tok | 2,852 tok/s | HIT |
-| **911,060 tok** | 2,538 tok/s | **HIT** |
+| prompt | prefill | needle | min free on binding rank |
+|---|---|---|---|
+| 383,060 tok | 3,519 tok/s | HIT | 30 MiB |
+| 599,060 tok | 2,852 tok/s | HIT | 30 MiB |
+| **911,060 tok** (fresh prefill) | 2,157 tok/s | **HIT** | 30 MiB |
+
+Note the middle column: re-running the same prompt returns in 5 s at 166,909 tok/s because it
+is served from the prefix cache, not re-prefilled. A repeat run with the same seed is not a
+stress test. Use a fresh seed when measuring prefill.
 
 A naive harness will report that 911K case as a MISS if the token budget is too small: with
 `max_tokens=200` the model exhausts the budget inside its `reasoning` field and returns empty
