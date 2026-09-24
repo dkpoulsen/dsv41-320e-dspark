@@ -169,6 +169,23 @@ allocate 128.00 MiB ... 113.75 MiB free` on the 9-layer rank). Load-time free me
 misleading safety metric — it understates steady-state usage by ~10×. Details in
 [KV-CAPACITY.md](KV-CAPACITY.md#the-util-098-row-is-a-trap-and-i-fell-into-it).
 
+## Further optimisation
+
+Measured survey of five more levers in **[OPTIMISATIONS.md](OPTIMISATIONS.md)**. The headline:
+
+| lever | result | verdict |
+|---|---|---|
+| Keep the prompt prefix **byte-stable** (prefix caching) | 20.5s → **0.50s** TTFT on a 40K prompt | **do this — biggest win available** |
+| `num_speculative_tokens=10` | 57.9 → 24.7 tok/s | dead end (the budget is quantised to multiples of 5) |
+| `max_num_batched_tokens=8192` | engine wedges; PP desync on the 9-layer rank | breaks — do not use |
+| Batch-size draft schedule | τ flat across batch 1–8 | no evidence it helps |
+| Adaptive verification | hard-blocked by PP | unavailable |
+
+Decode sits at ~58 tok/s whatever you tune, but agent loops resend a growing conversation every
+turn — so prefix-cache reuse, which is a *prompting* discipline rather than a server flag,
+dominates every server-side knob here. Keeping a timestamp or reshuffled tool list at the top of
+the prompt silently destroys a 30–40× TTFT win.
+
 ## Repo layout
 
 ```

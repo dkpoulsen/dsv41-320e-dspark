@@ -1,0 +1,40 @@
+{
+ "label": "conc-320e-rebal",
+ "levels": {
+  "1": {
+   "agg_tok_s": 53.2,
+   "tau": 2.427,
+   "acceptance": 0.2853,
+   "total_tokens": 512,
+   "wall_s": 9.6
+  },
+  "2": {
+   "agg_tok_s": 44.12,
+   "tau": 2.353,
+   "acceptance": 0.2706,
+   "total_tokens": 1024,
+   "wall_s": 23.2
+  },
+  "4": {
+   "agg_tok_s": 51.54,
+   "tau": 2.435,
+   "acceptance": 0.2869,
+   "total_tokens": 2048,
+   "wall_s": 39.7
+  },
+  "6": {
+   "agg_tok_s": 97.27,
+   "tau": 2.466,
+   "acceptance": 0.2932,
+   "total_tokens": 3072,
+   "wall_s": 31.6
+  },
+  "8": {
+   "agg_tok_s": 138.62,
+   "tau": 2.427,
+   "acceptance": 0.2854,
+   "total_tokens": 4096,
+   "wall_s": 29.5
+  }
+ }
+}
